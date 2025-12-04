@@ -100,7 +100,27 @@ class FM(nn.Module):
         # 3. sample probability path by generating noise and mix it with input
         # 4. matching the flow by MSE loss
 
-        # return loss
+        device = next(self.model.parameters()).device
+
+        # Sample t values uniformly from [0,1] for each image
+        t = torch.rand(size= (x_start.shape[0],1), device=device)
+
+        # Either use the noise given or generate it from normal distribution 
+        if noise == None:
+            noise = torch.randn_like(x_start, device=device)
+
+        # Apply t values for each image in the batch 
+        img_part = x_start*t.view(-1,1,1,1)
+        noise_part = noise*(1-t.view(-1,1,1,1))
+
+        # Get flows of noisy images 
+        flows = self.model(img_part+noise_part, label, t.view(-1))
+
+        # Find the MSE loss between the predicted flow and actual
+        loss_func = nn.MSELoss()
+        loss = loss_func(flows, x_start-noise)
+
+        return loss
 
     @torch.no_grad()
     def generate(self, labels):
@@ -121,6 +141,11 @@ class FM(nn.Module):
         # 1. sample dense time steps on the trajectory (t:0->1)
         # 2. draw images by following forward trajectory predicted by learned model
         # 3. optional decoding step
+        steps = range(0,1, self.dt)
+
+        for step in steps:
+            imgs = imgs + self.dt*self.model(imgs, labels,step)
+
 
         # postprocessing the images
         imgs = self.postprocess(imgs)
