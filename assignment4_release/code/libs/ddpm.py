@@ -169,8 +169,12 @@ class DDPM(nn.Module):
         """
         Fill in the missing code here. See Equation 4 in DDPM paper.
         """
-        # x_t =
-        # return x_t
+
+        #in the paper, they give the equation of N(x_t; mean =sqrt_alphas_cumprod_t*x_start, covariance=sqrt_one_minus_alphas_cumprod_t*I)
+        #if covariance=sqrt_one_minus_alphas_cumprod_t*I, then variance=sqrt_one_minus_alphas_cumprod_t
+        #so we can use torch.normal which takes mean=sqrt_alphas_cumprod_t*x_start (same mean), and variance = sqrt_one_minus_alphas_cumprod_t
+        x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape)
+        return x_t
 
     # compute the simplified loss
     def compute_loss(self, x_start, label, noise=None):
