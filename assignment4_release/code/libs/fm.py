@@ -102,6 +102,12 @@ class FM(nn.Module):
 
         device = next(self.model.parameters()).device
 
+        # Encode to smaller image if using VAE 
+        if self.use_vae == True:
+            # Encode images
+            x_start = self.vae.encoder(x_start)
+            
+
         # Sample t values uniformly from [0,1] for each image
         t = torch.rand(size= (x_start.shape[0],1), device=device)
 
@@ -141,14 +147,19 @@ class FM(nn.Module):
         # 1. sample dense time steps on the trajectory (t:0->1)
         # 2. draw images by following forward trajectory predicted by learned model
         # 3. optional decoding step
-        steps = range(0,1, self.dt)
+        steps = torch.arange(start=0, end=self.timesteps, )*self.dt
 
         for step in steps:
-            imgs = imgs + self.dt*self.model(imgs, labels,step)
+            step_vals = torch.ones(size=(len(labels),1), device=device)*step
+            imgs = imgs + self.dt*self.model(imgs, labels,step_vals.view(-1))
 
+        # If using VAE decode the latent  
+        if self.use_vae == True:
+            imgs = self.vae.decoder(imgs)
 
         # postprocessing the images
         imgs = self.postprocess(imgs)
+        
         return imgs
 
     @torch.no_grad()
