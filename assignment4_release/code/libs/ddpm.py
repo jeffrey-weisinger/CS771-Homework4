@@ -187,6 +187,10 @@ class DDPM(nn.Module):
         For latent DDPMs, an additional encoding step will be needed.
         """
 
+        #Encode the images to use the latent space
+        if self.use_vae == True:
+            x_start = self.vae.encoder(x_start)
+
         #we want one new timestep for every iteration - this way, we can calculate loss across all samples in batch.
         timestep = torch.randint(0, self.timesteps, size=(x_start.shape[0],), device=x_start.device)
 
@@ -257,6 +261,10 @@ class DDPM(nn.Module):
         for t_index in range(self.timesteps-1, -1, -1):
             t = torch.ones(shape[0], dtype=int, device=device) * t_index
             imgs = self.p_sample(imgs, labels, t, t_index)
+
+        # Decode the images if using the latent space
+        if self.use_vae == True:
+            imgs = self.vae.decoder(imgs)
 
         # postprocessing the images
         imgs = self.postprocess(imgs)
