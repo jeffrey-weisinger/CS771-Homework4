@@ -188,7 +188,7 @@ class DDPM(nn.Module):
         """
 
         #we want one new timestep for every iteration - this way, we can calculate loss across all samples in batch.
-        timestep = torch.randint(0, self.timesteps, size=(x_start.shape[0],), device=x_start.device)
+        timestep = torch.randint(0, self.timesteps, size=(x_start.shape[0],), device=x_start.device, dtype=torch.long)
 
         #getting values to calculate the e_prediction
         sqrt_alphas_cumprod = self._extract(
@@ -199,7 +199,7 @@ class DDPM(nn.Module):
         )
 
         #defining the two different e's (true and prediction) used in loss
-        e = torch.normal(mean=0, std=1, size=x_start.shape, device=x_start.device)
+        e = torch.normal(mean=0, std=1, size=x_start.shape, device=x_start.device, dtype=torch.long)
         e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, label, timestep)
         #putting everything all together into the  loss
         loss = torch.mean(torch.square(e - e_prediction))
@@ -228,9 +228,9 @@ class DDPM(nn.Module):
         #this again just uses the paper equation to sample x_t-1
         #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which we are using.
         if t_index >= 1:
-            z = torch.normal(mean=0, std=1, size=x.shape, device=x.device)
+            z = torch.normal(mean=0, std=1, size=x.shape, device=x.device, dtype=torch.long)
         else:
-            z = torch.zeros(size=x.shape, device=x.device)
+            z = torch.zeros(size=x.shape, device=x.device, dtype=torch.long)
         x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
         return x_t_minus_1_sample
     @torch.no_grad()
@@ -252,9 +252,9 @@ class DDPM(nn.Module):
         """
         # essentially, we are converting the entire img tensor, one timestep at a time.
 
-        labels = torch.tensor(labels, device=device)
+        labels = torch.tensor(labels, device=device, dtype=torch.long)
         for t_index in range(self.timesteps-1, -1, -1):
-            t = torch.ones(shape[0], device=device) * t_index
+            t = torch.ones(shape[0], device=device, dtype=torch.long) * t_index
             imgs = self.p_sample(imgs, labels, t, t_index)
 
         # postprocessing the images
