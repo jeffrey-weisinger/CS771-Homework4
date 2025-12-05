@@ -200,7 +200,7 @@ class DDPM(nn.Module):
 
         #defining the two different e's (true and prediction) used in loss
         e = torch.normal(mean=0, std=1, size=x_start.shape, device=x_start.device)
-        e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, timestep)
+        e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, label, timestep)
         #putting everything all together into the  loss
         loss = torch.mean(torch.square(e - e_prediction))
         return loss
