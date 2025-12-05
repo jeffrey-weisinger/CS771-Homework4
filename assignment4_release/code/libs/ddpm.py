@@ -207,8 +207,11 @@ class DDPM(nn.Module):
         #this just uses the paper equation to write mu
         mu = sqrt_recip_alphas_t * (x - (betas_t/sqrt_one_minus_alphas_cumprod_t)*e_prediction)
         #this again just uses the paper equation to sample x_t-1
-        #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which is suggested.
-        z = torch.normal(mean=0, std=1, size=x.shape)
+        #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which we are using.
+        if t > 1:
+            z = torch.normal(mean=0, std=1, size=x.shape)
+        else:
+            z = 0
         x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
         return x_t_minus_1_sample
     @torch.no_grad()
