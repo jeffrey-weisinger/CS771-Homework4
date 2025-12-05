@@ -180,11 +180,28 @@ class DDPM(nn.Module):
     # compute the simplified loss
     def compute_loss(self, x_start, label, noise=None):
         """
-        Compute the simplified loss for training the model.
+        Compute the simplified loss for training the mode - e_predictionel.
         Fill in the missing code here. Algorithm 1 line 3-5 in the paper.
         For latent DDPMs, an additional encoding step will be needed.
         """
-        # return loss
+
+        #we want one new timestep for every iteration
+        timestep = torch.randint(0, self.timesteps, size=x_start.shape[0])
+
+        #getting values to calculate the e_prediction
+        sqrt_alphas_cumprod = self._extract(
+            self.sqrt_alphas_cumprod, timestep, x_start.shape
+        )
+        sqrt_one_minus_alphas_cumprod = self._extract(
+            self.sqrt_one_minus_alphas_cumprod, timestep, x_start.shape
+        )
+
+        #defining the two different e's (true and prediction) used in loss
+        e = torch.normal(mean=0, std=1, size=x_start.shape)
+        e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, timestep)
+        #putting everything all together into the  loss
+        loss = torch.mean(torch.square(e - e_prediction))
+        return loss
 
     @torch.no_grad()
     def p_sample(self, x, label, t, t_index):
