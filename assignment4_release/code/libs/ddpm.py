@@ -170,9 +170,10 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 4 in DDPM paper.
         """
 
-        #in the paper, they give the equation of N(x_t; mean =sqrt_alphas_cumprod_t*x_start, covariance=sqrt_one_minus_alphas_cumprod_t*I)
-        #if covariance=sqrt_one_minus_alphas_cumprod_t*I, then variance=sqrt_one_minus_alphas_cumprod_t
-        #so we can use torch.normal which takes mean=sqrt_alphas_cumprod_t*x_start (same mean), and variance = sqrt_one_minus_alphas_cumprod_t
+        #in the paper, they give the equation of N(x_t; mean =sqrt(cumprod(a))*x_start, covariance=(1-cumprod(a))*I)
+        #if covariance=(1-cumprod(a))*I, then var for a single dimension=(1-cumprod(a)), and std = sqrt(1-cumprod(a)) (since variances live on diagonal of covariance matrix)
+        #so we can use torch.normal which takes mean=sqrt(cumprod(a))*x_start, and std=sqrt(1-cumprod(a))
+
         x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape)
         return x_t
 
@@ -201,8 +202,15 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 11 (also Algorithm 2 line 3-4)
         in DDPM paper.
         """
-        # mu =
-
+        #as mentioned in the paper, e is predicted using UNet. therefore, we will call the forward pass
+        e_prediction = self.model(x, label, t)
+        #this just uses the paper equation to write mu
+        mu = sqrt_recip_alphas_t * (x - (betas_t/sqrt_one_minus_alphas_cumprod_t)*e_prediction)
+        #this again just uses the paper equation to sample x_t-1
+        #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which is suggested.
+        z = torch.normal(mean=0, std=1, size=x.shape)
+        x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
+        return x_t_minus_1_sample
     @torch.no_grad()
     def generate(self, labels):
         """
