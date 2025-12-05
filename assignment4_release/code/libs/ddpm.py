@@ -174,7 +174,9 @@ class DDPM(nn.Module):
         #if covariance=(1-cumprod(a))*I, then var for a single dimension=(1-cumprod(a)), and std = sqrt(1-cumprod(a)) (since variances live on diagonal of covariance matrix)
         #so we can use torch.normal which takes mean=sqrt(cumprod(a))*x_start, and std=sqrt(1-cumprod(a))
 
-        x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape, device=x_start.device)
+        # x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape, device=x_start.device)
+        #new implementation: using provided noise:
+        x_t = sqrt_alphas_cumprod_t*x_start + sqrt_one_minus_alphas_cumprod_t*noise
         return x_t
 
     # compute the simplified loss
@@ -225,10 +227,10 @@ class DDPM(nn.Module):
         mu = sqrt_recip_alphas_t * (x - (betas_t/sqrt_one_minus_alphas_cumprod_t)*e_prediction)
         #this again just uses the paper equation to sample x_t-1
         #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which we are using.
-        if t > 1:
+        if t_index >= 1:
             z = torch.normal(mean=0, std=1, size=x.shape, device=x.device)
         else:
-            z = 0
+            z = torch.zeros(size=x.shape, device=x.device)
         x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
         return x_t_minus_1_sample
     @torch.no_grad()
