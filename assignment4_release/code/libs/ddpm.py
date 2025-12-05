@@ -253,8 +253,9 @@ class DDPM(nn.Module):
         # essentially, we are converting the entire img tensor, one timestep at a time.
 
         labels = torch.tensor(labels, device=device)
+
         for t_index in range(self.timesteps-1, -1, -1):
-            t = torch.ones(shape[0], device=device) * t_index
+            t = torch.ones(shape[0], dtype=int, device=device) * t_index
             imgs = self.p_sample(imgs, labels, t, t_index)
 
         # postprocessing the images
