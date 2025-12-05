@@ -174,7 +174,7 @@ class DDPM(nn.Module):
         #if covariance=(1-cumprod(a))*I, then var for a single dimension=(1-cumprod(a)), and std = sqrt(1-cumprod(a)) (since variances live on diagonal of covariance matrix)
         #so we can use torch.normal which takes mean=sqrt(cumprod(a))*x_start, and std=sqrt(1-cumprod(a))
 
-        x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape)
+        x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape, device=x_start.device)
         return x_t
 
     # compute the simplified loss
@@ -185,8 +185,8 @@ class DDPM(nn.Module):
         For latent DDPMs, an additional encoding step will be needed.
         """
 
-        #we want one new timestep for every iteration
-        timestep = torch.randint(0, self.timesteps, size=x_start.shape[0])
+        #we want one new timestep for every iteration - this way, we can calculate loss across all samples in batch.
+        timestep = torch.randint(0, self.timesteps, size=(x_start.shape[0],), device=x_start.device)
 
         #getting values to calculate the e_prediction
         sqrt_alphas_cumprod = self._extract(
@@ -197,7 +197,7 @@ class DDPM(nn.Module):
         )
 
         #defining the two different e's (true and prediction) used in loss
-        e = torch.normal(mean=0, std=1, size=x_start.shape)
+        e = torch.normal(mean=0, std=1, size=x_start.shape, device=x_start.device)
         e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, timestep)
         #putting everything all together into the  loss
         loss = torch.mean(torch.square(e - e_prediction))
@@ -226,7 +226,7 @@ class DDPM(nn.Module):
         #this again just uses the paper equation to sample x_t-1
         #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which we are using.
         if t > 1:
-            z = torch.normal(mean=0, std=1, size=x.shape)
+            z = torch.normal(mean=0, std=1, size=x.shape, device=x.device)
         else:
             z = 0
         x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
