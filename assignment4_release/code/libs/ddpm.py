@@ -169,17 +169,45 @@ class DDPM(nn.Module):
         """
         Fill in the missing code here. See Equation 4 in DDPM paper.
         """
-        # x_t =
-        # return x_t
+
+        #in the paper, they give the equation of N(x_t; mean =sqrt(cumprod(a))*x_start, covariance=(1-cumprod(a))*I)
+        #if covariance=(1-cumprod(a))*I, then var for a single dimension=(1-cumprod(a)), and std = sqrt(1-cumprod(a)) (since variances live on diagonal of covariance matrix)
+        #so we can use torch.normal which takes mean=sqrt(cumprod(a))*x_start, and std=sqrt(1-cumprod(a))
+
+        # x_t = torch.normal(sqrt_alphas_cumprod_t*x_start, std = sqrt_one_minus_alphas_cumprod_t, size = x_start.shape, device=x_start.device)
+        #new implementation: using provided noise:
+        x_t = sqrt_alphas_cumprod_t*x_start + sqrt_one_minus_alphas_cumprod_t*noise
+        return x_t
 
     # compute the simplified loss
     def compute_loss(self, x_start, label, noise=None):
         """
-        Compute the simplified loss for training the model.
+        Compute the simplified loss for training the mode - e_predictionel.
         Fill in the missing code here. Algorithm 1 line 3-5 in the paper.
         For latent DDPMs, an additional encoding step will be needed.
         """
-        # return loss
+
+        #Encode the images to use the latent space
+        if self.use_vae == True:
+            x_start = self.vae.encoder(x_start)
+
+        #we want one new timestep for every iteration - this way, we can calculate loss across all samples in batch.
+        timestep = torch.randint(0, self.timesteps, size=(x_start.shape[0],), device=x_start.device)
+
+        #getting values to calculate the e_prediction
+        sqrt_alphas_cumprod = self._extract(
+            self.sqrt_alphas_cumprod, timestep, x_start.shape
+        )
+        sqrt_one_minus_alphas_cumprod = self._extract(
+            self.sqrt_one_minus_alphas_cumprod, timestep, x_start.shape
+        )
+
+        #defining the two different e's (true and prediction) used in loss
+        e = torch.normal(mean=0, std=1, size=x_start.shape, device=x_start.device)
+        e_prediction = self.model(sqrt_alphas_cumprod*x_start + sqrt_one_minus_alphas_cumprod*e, label, timestep)
+        #putting everything all together into the  loss
+        loss = torch.mean(torch.square(e - e_prediction))
+        return loss
 
     @torch.no_grad()
     def p_sample(self, x, label, t, t_index):
@@ -197,8 +225,18 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 11 (also Algorithm 2 line 3-4)
         in DDPM paper.
         """
-        # mu =
-
+        #as mentioned in the paper, e is predicted using UNet. therefore, we will call the forward pass
+        e_prediction = self.model(x, label, t)
+        #this just uses the paper equation to write mu
+        mu = sqrt_recip_alphas_t * (x - (betas_t/sqrt_one_minus_alphas_cumprod_t)*e_prediction)
+        #this again just uses the paper equation to sample x_t-1
+        #note that the paper writes two choices for var, we choose the first version (var_t^2 = beta_t) since they say it works better with N(0, I) which we are using.
+        if t_index >= 1:
+            z = torch.normal(mean=0, std=1, size=x.shape, device=x.device)
+        else:
+            z = torch.zeros(size=x.shape, device=x.device)
+        x_t_minus_1_sample = mu + torch.sqrt(betas_t)*z
+        return x_t_minus_1_sample
     @torch.no_grad()
     def generate(self, labels):
         """
@@ -216,7 +254,17 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 11 / Algorithm 2 in DDPM paper.
         For latent DDPMs, an additional decoding step will be needed.
         """
-        # for ...
+        # essentially, we are converting the entire img tensor, one timestep at a time.
+
+        labels = torch.tensor(labels, device=device)
+
+        for t_index in range(self.timesteps-1, -1, -1):
+            t = torch.ones(shape[0], dtype=int, device=device) * t_index
+            imgs = self.p_sample(imgs, labels, t, t_index)
+
+        # Decode the images if using the latent space
+        if self.use_vae == True:
+            imgs = self.vae.decoder(imgs)
 
         # postprocessing the images
         imgs = self.postprocess(imgs)
